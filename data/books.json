@@ -1,0 +1,106 @@
+[
+  {
+    "title": "A Long Walk to Water",
+    "author": "Linda Sue Park",
+    "year": 2010,
+    "publisher": "Clarion Books",
+    "pages": 128,
+    "slug": "a-long-walk-to-water"
+  },
+  {
+    "title": "The Giver",
+    "author": "Lois Lowry",
+    "year": 1993,
+    "publisher": "Clarion Books",
+    "pages": 240,
+    "slug": "the-giver"
+  },
+  {
+    "title": "The Boy Who Harnessed the Wind",
+    "author": "William Kamkwamba, Bryan Mealer",
+    "year": 2016,
+    "publisher": "Puffin Books",
+    "pages": 304,
+    "slug": "the-boy-who-harnessed-the-wind-young-readers-edition"
+  },
+  {
+    "title": "Refugee",
+    "author": "Alan Gratz",
+    "year": 2017,
+    "publisher": "Scholastic Press",
+    "pages": 352,
+    "slug": "refugee"
+  },
+  {
+    "title": "왜 세계의 절반은 굶주리는가?",
+    "author": "장 지글러",
+    "year": 2016,
+    "publisher": "갈라파고스",
+    "pages": 232,
+    "slug": "왜-세계의-절반은-굶주리는가"
+  },
+  {
+    "title": "위험한 과학책",
+    "author": "랜들 먼로",
+    "year": 2015,
+    "publisher": "시공사",
+    "pages": 420,
+    "slug": "위험한-과학책"
+  },
+  {
+    "title": "사소한 것들의 과학",
+    "author": "마크 미오도닉",
+    "year": 2016,
+    "publisher": "MID",
+    "pages": 344,
+    "slug": "사소한-것들의-과학"
+  },
+  {
+    "title": "나는 풍요로웠고, 지구는 달라졌다",
+    "author": "호프 자런",
+    "year": 2020,
+    "publisher": "김영사",
+    "pages": 276,
+    "slug": "나는-풍요로웠고-지구는-달라졌다"
+  },
+  {
+    "title": "곰브리치 세계사",
+    "author": "에른스트 H. 곰브리치",
+    "year": 2024,
+    "publisher": "비룡소",
+    "pages": 461,
+    "slug": "곰브리치-세계사"
+  },
+  {
+    "title": "팩트풀니스",
+    "author": "한스 로슬링",
+    "year": 2019,
+    "publisher": "김영사",
+    "pages": 474,
+    "slug": "팩트풀니스"
+  },
+  {
+    "title": "나이트",
+    "author": "엘리 위젤",
+    "year": 2023,
+    "publisher": "위즈덤하우스",
+    "pages": 220,
+    "slug": "나이트"
+  },
+  {
+    "title": "동물농장",
+    "author": "조지 오웰",
+    "year": 1998,
+    "publisher": "민음사",
+    "pages": 160,
+    "slug": "동물농장"
+  },
+  {
+    "title": "이처럼 사소한 것들",
+    "author": "클레어 키건",
+    "year": 2023,
+    "publisher": "다산책방",
+    "pages": 132,
+    "slug": "이처럼-사소한-것들"
+  }
+]
