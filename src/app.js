@@ -2,16 +2,25 @@ const STORAGE_KEY = 'reading-pick-draft-state-v4';
 const OLD_KEYS = ['reading-draft-state-v1', 'reading-draft-state-v2', 'reading-pick-draft-state-v3'];
 const TOTAL_ROUNDS = 3;
 const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+const BGM_SRC = 'bgm.mp3';
+const BGM_TARGET_VOLUME = 0.34;
+const BGM_FADE_SECONDS = 3.6;
 
 let books = [];
 let students = [];
 let state = null;
+let bgm = null;
+let bgmFrame = null;
+let bgmDuckUntil = 0;
+let audioContext = null;
 
 const app = document.getElementById('app');
 
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
+  setupAudio();
+
   try {
     const [booksResponse, studentsResponse] = await Promise.all([
       fetch('data/books.json'),
@@ -78,6 +87,299 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function setupAudio() {
+  bgm = new Audio(BGM_SRC);
+  bgm.preload = 'auto';
+  bgm.volume = 0;
+  bgm.addEventListener('ended', restartBgm);
+
+  document.addEventListener('pointerdown', unlockAudio, { capture: true });
+  document.addEventListener('keydown', unlockAudio, { capture: true });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      startBgm();
+    }
+  });
+
+  startBgm();
+}
+
+function unlockAudio() {
+  startBgm();
+  resumeAudioContext();
+}
+
+function startBgm() {
+  if (!bgm) {
+    return;
+  }
+
+  const playPromise = bgm.play();
+  if (playPromise?.then) {
+    playPromise.then(scheduleBgmFade).catch(() => {});
+    return;
+  }
+
+  scheduleBgmFade();
+}
+
+function restartBgm() {
+  if (!bgm) {
+    return;
+  }
+
+  bgm.currentTime = 0;
+  bgm.volume = 0;
+  startBgm();
+}
+
+function scheduleBgmFade() {
+  cancelAnimationFrame(bgmFrame);
+
+  const tick = () => {
+    if (!bgm || bgm.paused) {
+      bgmFrame = null;
+      return;
+    }
+
+    updateBgmFade();
+    bgmFrame = requestAnimationFrame(tick);
+  };
+
+  tick();
+}
+
+function updateBgmFade() {
+  if (!bgm) {
+    return;
+  }
+
+  const duration = bgm.duration;
+  let fade = Math.min(1, bgm.currentTime / BGM_FADE_SECONDS);
+
+  if (Number.isFinite(duration) && duration > BGM_FADE_SECONDS * 2) {
+    const remaining = duration - bgm.currentTime;
+
+    if (remaining <= 0.14) {
+      bgm.currentTime = 0;
+      fade = 0;
+    } else {
+      const fadeIn = Math.min(1, bgm.currentTime / BGM_FADE_SECONDS);
+      const fadeOut = Math.min(1, Math.max(remaining, 0) / BGM_FADE_SECONDS);
+      fade = Math.min(fadeIn, fadeOut);
+    }
+  }
+
+  const duck = performance.now() < bgmDuckUntil ? 0.38 : 1;
+  bgm.volume = clamp(BGM_TARGET_VOLUME * fade * duck, 0, BGM_TARGET_VOLUME);
+}
+
+function duckBgm(milliseconds = 900) {
+  bgmDuckUntil = Math.max(bgmDuckUntil, performance.now() + milliseconds);
+}
+
+function getAudioContext() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+  if (!AudioContextClass) {
+    return null;
+  }
+
+  if (!audioContext) {
+    audioContext = new AudioContextClass();
+  }
+
+  resumeAudioContext();
+  return audioContext;
+}
+
+function resumeAudioContext() {
+  if (audioContext?.state === 'suspended') {
+    audioContext.resume().catch(() => {});
+  }
+}
+
+function playBookSelectCue() {
+  unlockAudio();
+
+  const context = getAudioContext();
+  if (!context) {
+    return;
+  }
+
+  const now = context.currentTime;
+  const bus = createSfxBus(context, 0.5, 0.45);
+
+  playTone(context, bus, {
+    type: 'triangle',
+    start: now,
+    duration: 0.16,
+    from: 180,
+    to: 720,
+    gain: 0.16
+  });
+  playTone(context, bus, {
+    type: 'sine',
+    start: now + 0.05,
+    duration: 0.11,
+    from: 920,
+    to: 1240,
+    gain: 0.08
+  });
+  playNoise(context, bus, {
+    start: now,
+    duration: 0.08,
+    gain: 0.11,
+    filterType: 'highpass',
+    frequency: 1800
+  });
+}
+
+function playPickLockCue() {
+  playLockCue({
+    chord: [196, 247, 392],
+    bassFrom: 88,
+    bassTo: 38,
+    accentFrom: 760,
+    accentTo: 520
+  });
+}
+
+function playTradeLockCue() {
+  playLockCue({
+    chord: [147, 220, 294],
+    bassFrom: 72,
+    bassTo: 32,
+    accentFrom: 540,
+    accentTo: 290,
+    doubleHit: true
+  });
+}
+
+function playLockCue({ chord, bassFrom, bassTo, accentFrom, accentTo, doubleHit = false }) {
+  unlockAudio();
+  duckBgm(1200);
+
+  const context = getAudioContext();
+  if (!context) {
+    return;
+  }
+
+  const now = context.currentTime;
+  const bus = createSfxBus(context, 0.9, 1.35);
+
+  playNoise(context, bus, {
+    start: now,
+    duration: 0.18,
+    gain: 0.34,
+    filterType: 'lowpass',
+    frequency: 1100
+  });
+  playTone(context, bus, {
+    type: 'sine',
+    start: now,
+    duration: 0.52,
+    from: bassFrom,
+    to: bassTo,
+    gain: 0.42
+  });
+  chord.forEach((frequency, index) => {
+    playTone(context, bus, {
+      type: 'sawtooth',
+      start: now + 0.025 + index * 0.012,
+      duration: 0.82,
+      from: frequency,
+      to: frequency * 0.96,
+      gain: 0.08
+    });
+  });
+  playTone(context, bus, {
+    type: 'square',
+    start: now + 0.04,
+    duration: 0.23,
+    from: accentFrom,
+    to: accentTo,
+    gain: 0.045
+  });
+
+  if (doubleHit) {
+    playNoise(context, bus, {
+      start: now + 0.21,
+      duration: 0.14,
+      gain: 0.2,
+      filterType: 'bandpass',
+      frequency: 1800
+    });
+    playTone(context, bus, {
+      type: 'sine',
+      start: now + 0.18,
+      duration: 0.46,
+      from: bassFrom * 1.2,
+      to: bassTo,
+      gain: 0.26
+    });
+  }
+}
+
+function createSfxBus(context, gain, lifetime) {
+  const bus = context.createGain();
+  bus.gain.setValueAtTime(gain, context.currentTime);
+  bus.connect(context.destination);
+  window.setTimeout(() => bus.disconnect(), lifetime * 1000);
+  return bus;
+}
+
+function playTone(context, destination, { type, start, duration, from, to, gain }) {
+  const oscillator = context.createOscillator();
+  const envelope = context.createGain();
+  const attack = Math.min(0.025, duration * 0.24);
+
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(Math.max(from, 1), start);
+  oscillator.frequency.exponentialRampToValueAtTime(Math.max(to, 1), start + duration);
+
+  envelope.gain.setValueAtTime(0.0001, start);
+  envelope.gain.exponentialRampToValueAtTime(Math.max(gain, 0.0001), start + attack);
+  envelope.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+  oscillator.connect(envelope);
+  envelope.connect(destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.04);
+}
+
+function playNoise(context, destination, { start, duration, gain, filterType, frequency }) {
+  const frameCount = Math.max(1, Math.floor(context.sampleRate * duration));
+  const buffer = context.createBuffer(1, frameCount, context.sampleRate);
+  const data = buffer.getChannelData(0);
+
+  for (let index = 0; index < frameCount; index += 1) {
+    const decay = 1 - index / frameCount;
+    data[index] = (Math.random() * 2 - 1) * decay;
+  }
+
+  const source = context.createBufferSource();
+  const filter = context.createBiquadFilter();
+  const envelope = context.createGain();
+
+  source.buffer = buffer;
+  filter.type = filterType;
+  filter.frequency.setValueAtTime(frequency, start);
+  envelope.gain.setValueAtTime(0.0001, start);
+  envelope.gain.exponentialRampToValueAtTime(Math.max(gain, 0.0001), start + 0.01);
+  envelope.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+  source.connect(filter);
+  filter.connect(envelope);
+  envelope.connect(destination);
+  source.start(start);
+  source.stop(start + duration + 0.02);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function render() {
@@ -487,6 +789,7 @@ function startRound(round) {
 }
 
 function selectBook(title) {
+  playBookSelectCue();
   state.selectedBookTitle = title;
   saveState();
   render();
@@ -506,6 +809,7 @@ function confirmPick() {
     return;
   }
 
+  playPickLockCue();
   state.currentRoundPicks[studentName] = selected;
   state.roundPool = state.roundPool.filter((title) => title !== selected);
   state.selectedBookTitle = null;
@@ -546,6 +850,7 @@ function exchangeSelectedBooks() {
     return;
   }
 
+  playTradeLockCue();
   state.currentRoundPicks[firstName] = secondBook;
   state.currentRoundPicks[secondName] = firstBook;
   state.roundHistory[state.round] = { ...state.currentRoundPicks };
