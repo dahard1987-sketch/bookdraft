@@ -3,6 +3,7 @@ const OLD_KEYS = ['reading-draft-state-v1', 'reading-draft-state-v2', 'reading-p
 const TOTAL_ROUNDS = 3;
 const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 const BGM_SRC = 'bgm.mp3';
+const PICK_LOCK_SFX_SRC = 'sounds/pick-confirm.mp3';
 const BGM_TARGET_VOLUME = 0.34;
 const BGM_FADE_SECONDS = 3.6;
 
@@ -12,6 +13,7 @@ let state = null;
 let bgm = null;
 let bgmFrame = null;
 let bgmDuckUntil = 0;
+let pickLockSfx = null;
 let audioContext = null;
 
 const app = document.getElementById('app');
@@ -94,6 +96,9 @@ function setupAudio() {
   bgm.preload = 'auto';
   bgm.volume = 0;
   bgm.addEventListener('ended', restartBgm);
+  loadOptionalAudio(PICK_LOCK_SFX_SRC, 0.94).then((audio) => {
+    pickLockSfx = audio;
+  });
 
   document.addEventListener('pointerdown', unlockAudio, { capture: true });
   document.addEventListener('keydown', unlockAudio, { capture: true });
@@ -104,6 +109,23 @@ function setupAudio() {
   });
 
   startBgm();
+}
+
+async function loadOptionalAudio(src, volume) {
+  try {
+    const response = await fetch(src, { method: 'HEAD', cache: 'no-store' });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const audio = new Audio(src);
+    audio.preload = 'auto';
+    audio.volume = volume;
+    return audio;
+  } catch (error) {
+    return null;
+  }
 }
 
 function unlockAudio() {
@@ -238,6 +260,14 @@ function playBookSelectCue() {
 }
 
 function playPickLockCue() {
+  if (playAudioFileCue(pickLockSfx, 1300)) {
+    return;
+  }
+
+  playGeneratedPickLockCue();
+}
+
+function playGeneratedPickLockCue() {
   playLockCue({
     chord: [196, 247, 392],
     bassFrom: 88,
@@ -245,6 +275,25 @@ function playPickLockCue() {
     accentFrom: 760,
     accentTo: 520
   });
+}
+
+function playAudioFileCue(audio, duckMilliseconds) {
+  if (!audio) {
+    return false;
+  }
+
+  unlockAudio();
+  duckBgm(duckMilliseconds);
+
+  const cue = audio.cloneNode();
+  cue.volume = audio.volume;
+
+  const playPromise = cue.play();
+  if (playPromise?.catch) {
+    playPromise.catch(playGeneratedPickLockCue);
+  }
+
+  return true;
 }
 
 function playTradeLockCue() {
