@@ -4,7 +4,8 @@ const TOTAL_ROUNDS = 3;
 const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 const BGM_SRC = 'bgm.mp3';
 const PICK_LOCK_SFX_SRC = 'sounds/pick-confirm.mp3';
-const BGM_TARGET_VOLUME = 0.34;
+const PICK_LOCK_SFX_GAIN = 1.5;
+const BGM_TARGET_VOLUME = 0.24;
 const BGM_FADE_SECONDS = 3.6;
 
 let books = [];
@@ -14,6 +15,7 @@ let bgm = null;
 let bgmFrame = null;
 let bgmDuckUntil = 0;
 let pickLockSfx = null;
+let pickLockSfxBuffer = null;
 let audioContext = null;
 
 const app = document.getElementById('app');
@@ -96,8 +98,11 @@ function setupAudio() {
   bgm.preload = 'auto';
   bgm.volume = 0;
   bgm.addEventListener('ended', restartBgm);
-  loadOptionalAudio(PICK_LOCK_SFX_SRC, 0.94).then((audio) => {
+  loadOptionalAudio(PICK_LOCK_SFX_SRC, 1).then((audio) => {
     pickLockSfx = audio;
+  });
+  loadOptionalAudioBuffer(PICK_LOCK_SFX_SRC).then((buffer) => {
+    pickLockSfxBuffer = buffer;
   });
 
   document.addEventListener('pointerdown', unlockAudio, { capture: true });
@@ -123,6 +128,27 @@ async function loadOptionalAudio(src, volume) {
     audio.preload = 'auto';
     audio.volume = volume;
     return audio;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function loadOptionalAudioBuffer(src) {
+  const context = getAudioContext();
+
+  if (!context) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(src, { cache: 'no-store' });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return context.decodeAudioData(arrayBuffer);
   } catch (error) {
     return null;
   }
@@ -260,6 +286,10 @@ function playBookSelectCue() {
 }
 
 function playPickLockCue() {
+  if (playAudioBufferCue(pickLockSfxBuffer, PICK_LOCK_SFX_GAIN, 1300)) {
+    return;
+  }
+
   if (playAudioFileCue(pickLockSfx, 1300)) {
     return;
   }
@@ -275,6 +305,39 @@ function playGeneratedPickLockCue() {
     accentFrom: 760,
     accentTo: 520
   });
+}
+
+function playAudioBufferCue(buffer, gain, duckMilliseconds) {
+  if (!buffer) {
+    return false;
+  }
+
+  unlockAudio();
+  duckBgm(duckMilliseconds);
+
+  const context = getAudioContext();
+
+  if (!context) {
+    return false;
+  }
+
+  try {
+    const source = context.createBufferSource();
+    const output = context.createGain();
+
+    source.buffer = buffer;
+    output.gain.setValueAtTime(gain, context.currentTime);
+    source.connect(output);
+    output.connect(context.destination);
+    source.addEventListener('ended', () => {
+      source.disconnect();
+      output.disconnect();
+    }, { once: true });
+    source.start();
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 function playAudioFileCue(audio, duckMilliseconds) {
