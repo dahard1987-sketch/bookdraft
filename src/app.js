@@ -682,7 +682,7 @@ function renderTrade() {
     </main>
   `;
 
-  document.querySelectorAll('.trade-card').forEach((card) => {
+  document.querySelectorAll('.trade-card:not(.disabled)').forEach((card) => {
     card.addEventListener('click', () => toggleTradeSelection(card.dataset.studentName));
   });
   document.getElementById('exchange-books').addEventListener('click', exchangeSelectedBooks);
@@ -847,9 +847,10 @@ function renderTradeCard(student) {
   const selected = state.selectedTradeStudents.includes(student.name);
   const previous = getOwnedBooks(student.name).filter((_, index) => index !== state.round - 1);
   const originalCount = getOriginalCountForStudent(student.name);
+  const disabled = !canSelectTradeStudent(student.name);
 
   return `
-    <article class="trade-card ${selected ? 'selected' : ''} ${originalCount > 1 ? 'original-warning' : ''}" data-student-name="${escapeHtml(student.name)}">
+    <article class="trade-card ${selected ? 'selected' : ''} ${originalCount > 1 ? 'original-warning' : ''} ${disabled ? 'disabled' : ''}" data-student-name="${escapeHtml(student.name)}">
       <div class="student-badge">
         ${renderAvatar(student)}
         <div>
@@ -1003,6 +1004,8 @@ function finishRound() {
 function toggleTradeSelection(studentName) {
   if (state.selectedTradeStudents.includes(studentName)) {
     state.selectedTradeStudents = state.selectedTradeStudents.filter((name) => name !== studentName);
+  } else if (!canSelectTradeStudent(studentName)) {
+    return;
   } else if (state.selectedTradeStudents.length < 2) {
     state.selectedTradeStudents = [...state.selectedTradeStudents, studentName];
   } else {
@@ -1043,7 +1046,9 @@ function isValidTrade(firstName, secondName) {
     return false;
   }
 
-  return canReceiveBook(firstName, secondBook) && canReceiveBook(secondName, firstBook);
+  return !isOriginalBlockedTradePair(firstName, secondName)
+    && canReceiveBook(firstName, secondBook)
+    && canReceiveBook(secondName, firstBook);
 }
 
 function commitRoundAndContinue() {
@@ -1211,6 +1216,30 @@ function canReceiveBook(studentName, title) {
   const owned = getOwnedBooks(studentName).filter((ownedTitle, index) => ownedTitle && index !== state.round - 1);
 
   return title ? !owned.includes(title) : false;
+}
+
+function canSelectTradeStudent(studentName) {
+  if (state.selectedTradeStudents.includes(studentName)) {
+    return true;
+  }
+
+  if (!state.currentRoundPicks[studentName]) {
+    return false;
+  }
+
+  if (state.selectedTradeStudents.length === 0) {
+    return true;
+  }
+
+  const anchorName = state.selectedTradeStudents[state.selectedTradeStudents.length - 1];
+  return !isOriginalBlockedTradePair(anchorName, studentName);
+}
+
+function isOriginalBlockedTradePair(firstName, secondName) {
+  const firstCount = getOriginalCountForStudent(firstName);
+  const secondCount = getOriginalCountForStudent(secondName);
+
+  return (firstCount > 1 && secondCount >= 1) || (secondCount > 1 && firstCount >= 1);
 }
 
 function hasCurrentRoundTrades() {

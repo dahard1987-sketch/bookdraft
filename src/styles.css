@@ -1,6 +1,8 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap");
+
 :root {
   color-scheme: dark;
-  font-family: Inter, Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Noto Sans KR", "Asta Sans KR", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: #090d13;
   color: #eef4ff;
   --bg: #090d13;
@@ -132,7 +134,7 @@ button:not(:disabled) {
 }
 
 .hero-panel h1 {
-  font-size: clamp(4rem, 12vw, 9rem);
+  font-size: clamp(3.3rem, 8vw, 6.8rem);
   letter-spacing: 0;
 }
 
@@ -260,6 +262,11 @@ button:not(:disabled) {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.035);
   padding: 10px;
+}
+
+.student-badge > div {
+  min-width: 0;
+  flex: 1;
 }
 
 .student-badge strong,
@@ -744,6 +751,12 @@ button:not(:disabled) {
   cursor: pointer;
 }
 
+.trade-card.disabled {
+  cursor: not-allowed;
+  filter: grayscale(1);
+  opacity: 0.42;
+}
+
 .trade-card.selected {
   border-color: var(--gold);
   box-shadow: 0 0 0 2px rgba(215, 180, 106, 0.25);
@@ -898,10 +911,10 @@ button:not(:disabled) {
 
 .results-transfer-board {
   width: 100%;
-  border: 1px solid var(--line-strong);
+  border: 1px solid #111827;
   border-radius: 8px;
   overflow: hidden;
-  background: #f6f0dc;
+  background: #ffffff;
   color: #111827;
 }
 
@@ -909,14 +922,14 @@ button:not(:disabled) {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 1.02rem;
-  font-weight: 800;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .results-table th,
 .results-table td {
   border: 2px solid #1f2937;
-  padding: 8px 10px;
+  padding: 9px 10px;
   line-height: 1.28;
   text-align: center;
   vertical-align: middle;
@@ -924,24 +937,26 @@ button:not(:disabled) {
 }
 
 .results-table thead th {
-  background: #111827;
-  color: #fff7d6;
-  font-size: 1.12rem;
+  background: #e5e7eb;
+  color: #111827;
+  font-size: 1.04rem;
+  font-weight: 900;
 }
 
 .results-table tbody th {
   width: 92px;
-  background: #d7b46a;
+  background: #f3f4f6;
   color: #111827;
   font-size: 1rem;
+  font-weight: 900;
 }
 
 .results-table tbody tr:nth-child(even) td {
-  background: #fffaf0;
+  background: #ffffff;
 }
 
 .results-table tbody tr:nth-child(odd) td {
-  background: #ecf4ff;
+  background: #ffffff;
 }
 
 .export-actions {
