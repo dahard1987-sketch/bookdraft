@@ -1,6 +1,12 @@
 const STORAGE_KEY = 'reading-pick-draft-state-v4';
 const OLD_KEYS = ['reading-draft-state-v1', 'reading-draft-state-v2', 'reading-pick-draft-state-v3'];
 const TOTAL_ROUNDS = 3;
+const ORIGINAL_BOOK_TITLES = new Set([
+  'A Long Walk to Water',
+  'The Giver',
+  'The Boy Who Harnessed the Wind',
+  'Refugee'
+]);
 const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 const BGM_SRC = 'bgm.mp3';
 const PICK_LOCK_SFX_SRC = 'sounds/pick-confirm.mp3';
@@ -684,7 +690,7 @@ function renderFinal() {
           <h1>Book Draft</h1>
         </div>
         <div class="button-row">
-          <button class="btn primary" id="export-tsv">TSV Export</button>
+          <button class="btn primary" id="transfer-results">결과 전송</button>
           <button class="btn quiet" id="reset-state">처음부터 다시</button>
         </div>
       </section>
@@ -695,10 +701,11 @@ function renderFinal() {
     </main>
   `;
 
-  document.getElementById('export-tsv').addEventListener('click', openTsvExportPopup);
+  document.getElementById('transfer-results').addEventListener('click', openResultsTransferPopup);
   document.getElementById('reset-state').addEventListener('click', resetState);
   bindTopbarActions();
   hydrateImages();
+  bindFinalBookTooltips();
 }
 
 function renderTopbar(title, meta) {
@@ -755,7 +762,7 @@ function renderBookCoverByTitle(title, className = '') {
   }
 
   const book = getBook(title);
-  return `<img class="book-cover book-cover-only ${className}" src="images/books/${encodeURIComponent(book.slug)}.jpg" data-title="${escapeHtml(book.title)}" alt="${escapeHtml(book.title)}" title="${escapeHtml(book.title)}" />`;
+  return `<img class="book-cover book-cover-only ${className}" src="images/books/${encodeURIComponent(book.slug)}.jpg" data-title="${escapeHtml(book.title)}" data-author="${escapeHtml(book.author)}" data-pages="${escapeHtml(book.pages || '')}" alt="${escapeHtml(book.title)}" />`;
 }
 
 function renderPickBookCard(book, eligibleTitles, isDone) {
@@ -765,7 +772,7 @@ function renderPickBookCard(book, eligibleTitles, isDone) {
   const disabled = isDone || alreadyPicked || ineligible;
 
   return `
-    <article class="book-card pick-book ${selected ? 'selected' : ''} ${disabled ? 'disabled' : ''}" data-title="${escapeHtml(book.title)}">
+    <article class="book-card pick-book ${isOriginalBookTitle(book.title) ? 'original-book' : ''} ${selected ? 'selected' : ''} ${disabled ? 'disabled' : ''}" data-title="${escapeHtml(book.title)}">
       <img class="book-cover" src="images/books/${encodeURIComponent(book.slug)}.jpg" data-title="${escapeHtml(book.title)}" alt="${escapeHtml(book.title)}" />
     </article>
   `;
@@ -852,7 +859,7 @@ function renderFinalCard(student) {
         </div>
       </div>
       <ol>
-        ${[0, 1, 2].map((index) => `<li><span>${index + 1}</span>${renderBookCoverByTitle(owned[index], 'final-cover')}</li>`).join('')}
+        ${[0, 1, 2].map((index) => `<li class="final-pick-slot round-${index + 1}"><span class="round-label">${index + 1}차</span>${renderBookCoverByTitle(owned[index], 'final-cover')}</li>`).join('')}
       </ol>
     </article>
   `;
@@ -984,7 +991,7 @@ function isValidTrade(firstName, secondName) {
     return false;
   }
 
-  return !getOwnedBooks(firstName).includes(secondBook) && !getOwnedBooks(secondName).includes(firstBook);
+  return canReceiveBook(firstName, secondBook) && canReceiveBook(secondName, firstBook);
 }
 
 function commitRoundAndContinue() {
@@ -1021,15 +1028,15 @@ function resetState() {
   render();
 }
 
-function openTsvExportPopup() {
+function openResultsTransferPopup() {
   document.querySelector('.export-popup')?.remove();
 
-  const tsv = createResultsTsv();
+  const readableText = createReadableResultsText();
   const popup = document.createElement('div');
   const panel = document.createElement('section');
   const header = document.createElement('div');
   const title = document.createElement('h2');
-  const textarea = document.createElement('textarea');
+  const board = document.createElement('div');
   const actions = document.createElement('div');
   const copyButton = document.createElement('button');
   const closeButton = document.createElement('button');
@@ -1040,12 +1047,10 @@ function openTsvExportPopup() {
 
   panel.className = 'export-panel';
   header.className = 'export-header';
-  title.textContent = 'TSV Export';
+  title.textContent = '결과 전송';
 
-  textarea.className = 'export-textarea';
-  textarea.readOnly = true;
-  textarea.spellcheck = false;
-  textarea.value = tsv;
+  board.className = 'results-transfer-board';
+  board.innerHTML = renderResultsTransferTable();
 
   actions.className = 'button-row export-actions';
   copyButton.className = 'btn primary';
@@ -1066,16 +1071,12 @@ function openTsvExportPopup() {
   };
 
   copyButton.addEventListener('click', async () => {
-    textarea.focus();
-    textarea.select();
-
-    try {
-      await navigator.clipboard.writeText(tsv);
+    if (await copyTextToClipboard(readableText)) {
       copyButton.textContent = '복사됨';
-    } catch (error) {
-      document.execCommand('copy');
-      copyButton.textContent = '복사됨';
+      return;
     }
+
+    copyButton.textContent = '복사 실패';
   });
   closeButton.addEventListener('click', close);
   popup.addEventListener('click', (event) => {
@@ -1087,30 +1088,66 @@ function openTsvExportPopup() {
 
   header.append(title);
   actions.append(copyButton, closeButton);
-  panel.append(header, textarea, actions);
+  panel.append(header, board, actions);
   popup.append(panel);
   document.body.append(popup);
-
-  requestAnimationFrame(() => {
-    textarea.focus();
-    textarea.select();
-  });
 }
 
-function createResultsTsv() {
+function renderResultsTransferTable() {
+  return `
+    <table class="results-table">
+      <thead>
+        <tr>
+          <th>이름</th>
+          <th>1차</th>
+          <th>2차</th>
+          <th>3차</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${students.map((student) => {
+          const owned = getOwnedBooks(student.name);
+          return `
+            <tr>
+              <th>${escapeHtml(student.name)}</th>
+              <td>${escapeHtml(owned[0] || '')}</td>
+              <td>${escapeHtml(owned[1] || '')}</td>
+              <td>${escapeHtml(owned[2] || '')}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function createReadableResultsText() {
   const rows = [['이름', '1차', '2차', '3차']];
 
   students.forEach((student) => {
     const owned = getOwnedBooks(student.name);
-    rows.push([student.name, owned[0] || '', owned[1] || '', owned[2] || '']);
+    rows.push([
+      student.name,
+      owned[0] || '',
+      owned[1] || '',
+      owned[2] || ''
+    ]);
   });
 
-  return rows.map((row) => row.map(formatTsvCell).join('\t')).join('\n');
+  return rows.map((row) => row.map(formatResultCell).join(' | ')).join('\n');
 }
 
 function getEligibleBookTitles(studentName) {
-  const owned = new Set(getOwnedBooks(studentName));
-  return state.roundPool.filter((title) => !owned.has(title));
+  const owned = getOwnedBooks(studentName).filter(Boolean);
+  const hasOriginalBook = owned.some(isOriginalBookTitle);
+
+  return state.roundPool.filter((title) => {
+    if (owned.includes(title)) {
+      return false;
+    }
+
+    return !hasOriginalBook || !isOriginalBookTitle(title);
+  });
 }
 
 function getPickerForTitle(title) {
@@ -1119,6 +1156,24 @@ function getPickerForTitle(title) {
 
 function getOwnedBooks(studentName) {
   return state.ownedBooksByStudent[studentName] || [];
+}
+
+function canReceiveBook(studentName, title) {
+  const owned = getOwnedBooks(studentName).filter((ownedTitle, index) => ownedTitle && index !== state.round - 1);
+
+  if (owned.includes(title)) {
+    return false;
+  }
+
+  return countOriginalBooks([...owned, title]) <= 1;
+}
+
+function countOriginalBooks(titles) {
+  return titles.filter(isOriginalBookTitle).length;
+}
+
+function isOriginalBookTitle(title) {
+  return ORIGINAL_BOOK_TITLES.has(title);
 }
 
 function getStudent(name) {
@@ -1163,6 +1218,81 @@ function hydrateImages(root = document) {
     img.addEventListener('error', tryNext);
     tryNext();
   });
+}
+
+function bindFinalBookTooltips() {
+  const covers = document.querySelectorAll('.final-cover.book-cover');
+
+  if (!covers.length) {
+    return;
+  }
+
+  let tooltip = document.querySelector('.book-hover-tooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.className = 'book-hover-tooltip';
+    document.body.append(tooltip);
+  }
+
+  const hide = () => {
+    tooltip.classList.remove('visible');
+  };
+
+  covers.forEach((cover) => {
+    cover.addEventListener('pointerenter', (event) => {
+      tooltip.innerHTML = `
+        <strong>${escapeHtml(cover.dataset.title || '')}</strong>
+        <span>${escapeHtml(cover.dataset.author || '')}</span>
+        ${cover.dataset.pages ? `<em>${escapeHtml(cover.dataset.pages)}쪽</em>` : ''}
+      `;
+      tooltip.classList.add('visible');
+      moveBookTooltip(event, tooltip);
+    });
+    cover.addEventListener('pointermove', (event) => moveBookTooltip(event, tooltip));
+    cover.addEventListener('pointerleave', hide);
+    cover.addEventListener('pointercancel', hide);
+  });
+}
+
+function moveBookTooltip(event, tooltip) {
+  const offset = 18;
+  const margin = 8;
+  const rect = tooltip.getBoundingClientRect();
+  let x = event.clientX + offset;
+  let y = event.clientY + offset;
+
+  if (x + rect.width > window.innerWidth - margin) {
+    x = event.clientX - rect.width - offset;
+  }
+
+  if (y + rect.height > window.innerHeight - margin) {
+    y = event.clientY - rect.height - offset;
+  }
+
+  tooltip.style.transform = `translate(${Math.max(margin, x)}px, ${Math.max(margin, y)}px)`;
+}
+
+async function copyTextToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (error) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-1000px';
+    document.body.append(textarea);
+    textarea.select();
+
+    try {
+      return document.execCommand('copy');
+    } catch (copyError) {
+      return false;
+    } finally {
+      textarea.remove();
+    }
+  }
 }
 
 function createBookPlaceholder(title) {
@@ -1240,6 +1370,6 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-function formatTsvCell(value) {
+function formatResultCell(value) {
   return String(value ?? '').replaceAll('\t', ' ').replace(/\r?\n/g, ' ');
 }
