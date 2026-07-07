@@ -756,6 +756,65 @@ button:not(:disabled) {
   height: 72px;
 }
 
+.export-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(3, 6, 10, 0.74);
+  backdrop-filter: blur(10px);
+}
+
+.export-panel {
+  width: min(880px, 100%);
+  border: 1px solid rgba(215, 180, 106, 0.54);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(20, 31, 45, 0.98), rgba(8, 12, 18, 0.98));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
+  padding: 16px;
+}
+
+.export-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.export-header h2 {
+  margin: 0;
+  color: var(--gold);
+  font-size: 1rem;
+  text-transform: uppercase;
+}
+
+.export-textarea {
+  display: block;
+  width: 100%;
+  min-height: 330px;
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 14px;
+  background: #070b11;
+  color: var(--text);
+  font: 0.96rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre;
+}
+
+.export-textarea:focus {
+  outline: 2px solid rgba(56, 163, 255, 0.52);
+  outline-offset: 2px;
+}
+
+.export-actions {
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
 @media (max-width: 1180px) {
   .pick-layout {
     grid-template-columns: 250px minmax(0, 1fr) 250px;

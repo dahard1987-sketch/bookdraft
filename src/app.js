@@ -684,7 +684,7 @@ function renderFinal() {
           <h1>Book Draft</h1>
         </div>
         <div class="button-row">
-          <button class="btn primary" id="export-csv">CSV 내보내기</button>
+          <button class="btn primary" id="export-tsv">TSV Export</button>
           <button class="btn quiet" id="reset-state">처음부터 다시</button>
         </div>
       </section>
@@ -695,7 +695,7 @@ function renderFinal() {
     </main>
   `;
 
-  document.getElementById('export-csv').addEventListener('click', exportCsv);
+  document.getElementById('export-tsv').addEventListener('click', openTsvExportPopup);
   document.getElementById('reset-state').addEventListener('click', resetState);
   bindTopbarActions();
   hydrateImages();
@@ -1021,23 +1021,91 @@ function resetState() {
   render();
 }
 
-function exportCsv() {
-  const rows = [['학생 한국어이름', '영어이름', '1차 도서 제목', '2차 도서 제목', '3차 도서 제목']];
+function openTsvExportPopup() {
+  document.querySelector('.export-popup')?.remove();
+
+  const tsv = createResultsTsv();
+  const popup = document.createElement('div');
+  const panel = document.createElement('section');
+  const header = document.createElement('div');
+  const title = document.createElement('h2');
+  const textarea = document.createElement('textarea');
+  const actions = document.createElement('div');
+  const copyButton = document.createElement('button');
+  const closeButton = document.createElement('button');
+
+  popup.className = 'export-popup';
+  popup.setAttribute('role', 'dialog');
+  popup.setAttribute('aria-modal', 'true');
+
+  panel.className = 'export-panel';
+  header.className = 'export-header';
+  title.textContent = 'TSV Export';
+
+  textarea.className = 'export-textarea';
+  textarea.readOnly = true;
+  textarea.spellcheck = false;
+  textarea.value = tsv;
+
+  actions.className = 'button-row export-actions';
+  copyButton.className = 'btn primary';
+  copyButton.type = 'button';
+  copyButton.textContent = '복사';
+  closeButton.className = 'btn quiet';
+  closeButton.type = 'button';
+  closeButton.textContent = '닫기';
+
+  const close = () => {
+    popup.remove();
+    document.removeEventListener('keydown', handleKeydown);
+  };
+  const handleKeydown = (event) => {
+    if (event.key === 'Escape') {
+      close();
+    }
+  };
+
+  copyButton.addEventListener('click', async () => {
+    textarea.focus();
+    textarea.select();
+
+    try {
+      await navigator.clipboard.writeText(tsv);
+      copyButton.textContent = '복사됨';
+    } catch (error) {
+      document.execCommand('copy');
+      copyButton.textContent = '복사됨';
+    }
+  });
+  closeButton.addEventListener('click', close);
+  popup.addEventListener('click', (event) => {
+    if (event.target === popup) {
+      close();
+    }
+  });
+  document.addEventListener('keydown', handleKeydown);
+
+  header.append(title);
+  actions.append(copyButton, closeButton);
+  panel.append(header, textarea, actions);
+  popup.append(panel);
+  document.body.append(popup);
+
+  requestAnimationFrame(() => {
+    textarea.focus();
+    textarea.select();
+  });
+}
+
+function createResultsTsv() {
+  const rows = [['이름', '1차', '2차', '3차']];
+
   students.forEach((student) => {
     const owned = getOwnedBooks(student.name);
-    rows.push([student.name, student.englishName, owned[0] || '', owned[1] || '', owned[2] || '']);
+    rows.push([student.name, owned[0] || '', owned[1] || '', owned[2] || '']);
   });
 
-  const csv = rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'reading-draft-results.csv';
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  return rows.map((row) => row.map(formatTsvCell).join('\t')).join('\n');
 }
 
 function getEligibleBookTitles(studentName) {
@@ -1172,7 +1240,6 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-function escapeCsvCell(value) {
-  const text = String(value ?? '');
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+function formatTsvCell(value) {
+  return String(value ?? '').replaceAll('\t', ' ').replace(/\r?\n/g, ' ');
 }
