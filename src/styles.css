@@ -248,14 +248,14 @@ button:not(:disabled) {
 
 .student-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px;
 }
 
 .student-badge,
 .pick-order li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   min-width: 0;
   border: 1px solid var(--line);
@@ -269,6 +269,13 @@ button:not(:disabled) {
   flex: 1;
 }
 
+.student-name-block {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  line-height: 1.15;
+}
+
 .student-badge strong,
 .student-badge span,
 .pick-order strong,
@@ -278,6 +285,26 @@ button:not(:disabled) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.student-name-block .student-name-ko,
+.student-name-block .student-name-en {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.student-name-block .student-name-ko {
+  color: var(--text);
+  font-size: 0.98rem;
+  font-weight: 900;
+}
+
+.student-name-block .student-name-en {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
 .student-badge span,
@@ -297,7 +324,7 @@ button:not(:disabled) {
   place-items: center;
   overflow: hidden;
   border: 1px solid var(--line-strong);
-  border-radius: 50%;
+  border-radius: 8px;
   background: linear-gradient(145deg, #1d7cc4, #2b3440);
   color: white;
   font-weight: 900;
@@ -307,6 +334,7 @@ button:not(:disabled) {
   width: 86px;
   height: 86px;
   flex-basis: 86px;
+  border-radius: 10px;
   font-size: 1.45rem;
 }
 
@@ -328,7 +356,21 @@ button:not(:disabled) {
 }
 
 .book-grid.preview {
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+}
+
+.book-grid.preview .book-card > div {
+  padding: 8px;
+}
+
+.book-grid.preview .book-card strong {
+  min-height: 2.35em;
+  font-size: 0.86rem;
+}
+
+.book-grid.preview .book-card span,
+.book-grid.preview .book-card small {
+  font-size: 0.74rem;
 }
 
 .book-card {

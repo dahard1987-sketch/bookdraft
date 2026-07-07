@@ -741,10 +741,17 @@ function renderStudentBadge(student) {
   return `
     <article class="student-badge">
       ${renderAvatar(student)}
-      <div>
-        <strong>${escapeHtml(formatStudentName(student))}</strong>
+      <div class="student-name-block">
+        ${renderStudentName(student)}
       </div>
     </article>
+  `;
+}
+
+function renderStudentName(student) {
+  return `
+    <strong class="student-name-ko">${escapeHtml(student.name)}</strong>
+    <span class="student-name-en">${escapeHtml(student.englishName)}</span>
   `;
 }
 
@@ -829,8 +836,8 @@ function renderPickOrderItem(name, index) {
     <li class="${className}">
       <span class="order-number">${index + 1}</span>
       ${renderAvatar(student)}
-      <div>
-        <strong>${escapeHtml(formatStudentName(student))}</strong>
+      <div class="student-name-block">
+        ${renderStudentName(student)}
         ${originalCount > 1 ? `<small class="original-alert">원서 ${originalCount}권</small>` : ''}
         <div class="student-book-stack">
           ${previousTitles.map((title) => renderBookCoverByTitle(title, 'order-cover')).join('')}
@@ -853,8 +860,8 @@ function renderTradeCard(student) {
     <article class="trade-card ${selected ? 'selected' : ''} ${originalCount > 1 ? 'original-warning' : ''} ${disabled ? 'disabled' : ''}" data-student-name="${escapeHtml(student.name)}">
       <div class="student-badge">
         ${renderAvatar(student)}
-        <div>
-          <strong>${escapeHtml(formatStudentName(student))}</strong>
+        <div class="student-name-block">
+          ${renderStudentName(student)}
           ${originalCount > 1 ? `<span class="original-alert">원서 ${originalCount}권</span>` : ''}
         </div>
       </div>
@@ -874,8 +881,8 @@ function renderFinalCard(student) {
     <article class="final-card">
       <div class="student-badge">
         ${renderAvatar(student)}
-        <div>
-          <strong>${escapeHtml(formatStudentName(student))}</strong>
+        <div class="student-name-block">
+          ${renderStudentName(student)}
         </div>
       </div>
       <ol>
