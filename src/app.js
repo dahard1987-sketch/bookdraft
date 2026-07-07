@@ -575,6 +575,7 @@ function renderDraft() {
   const leftoverCount = state.roundPool.length;
   const leftOrder = state.pickOrder.slice(0, 6);
   const rightOrder = state.pickOrder.slice(6);
+  const selectedCreatesOriginalWarning = Boolean(currentStudent && selectedBook && wouldCreateOriginalOverflow(currentStudent.name, selectedBook.title));
 
   app.innerHTML = `
     <main class="app-shell pick-room">
@@ -593,16 +594,17 @@ function renderDraft() {
               <span class="eyebrow">${isDone ? 'PICK COMPLETE' : 'PICK PHASE'}</span>
               <h1>${isDone ? 'Round Complete' : escapeHtml(formatStudentName(currentStudent))}</h1>
             </div>
-            ${currentStudent ? renderAvatar(currentStudent, 'xl') : '<div class="round-token">OK</div>'}
+            ${currentStudent ? renderAvatar(currentStudent, 'xl') : ''}
           </div>
 
-          <div class="selected-slot ${selectedBook ? 'locked' : ''}">
+          <div class="selected-slot ${selectedBook ? 'locked' : ''} ${selectedCreatesOriginalWarning ? 'original-warning' : ''}">
             ${selectedBook ? renderSelectedBook(selectedBook, currentStudent) : renderEmptySelectedSlot(isDone)}
           </div>
 
           <div class="button-row stage-actions">
             <button class="btn primary" id="confirm-pick" ${state.selectedBookTitle && !isDone ? '' : 'disabled'}>픽 확정</button>
             <button class="btn secondary" id="finish-round" ${isDone ? '' : 'disabled'}>트레이드 단계로</button>
+            <button class="btn quiet" id="undo-pick" ${canUndoLastPick() ? '' : 'disabled'}>직전 픽 취소</button>
             <button class="btn quiet" id="clear-selection" ${state.selectedBookTitle ? '' : 'disabled'}>선택 취소</button>
           </div>
 
@@ -625,6 +627,7 @@ function renderDraft() {
   });
   document.getElementById('confirm-pick').addEventListener('click', confirmPick);
   document.getElementById('finish-round').addEventListener('click', finishRound);
+  document.getElementById('undo-pick').addEventListener('click', undoLastPick);
   document.getElementById('clear-selection').addEventListener('click', clearSelection);
   bindTopbarActions();
   hydrateImages();
@@ -636,11 +639,13 @@ function renderTrade() {
   const firstBook = state.currentRoundPicks[firstName];
   const secondBook = state.currentRoundPicks[secondName];
   const canExchange = selected.length === 2 && isValidTrade(firstName, secondName);
+  const originalViolations = getOriginalRuleViolations();
+  const canLeaveTrade = originalViolations.length === 0;
   const log = state.tradeLogByRound[state.round] || [];
 
   app.innerHTML = `
     <main class="app-shell">
-      ${renderTopbar(`Round ${state.round} Trade`, `${selected.length}/2`)}
+      ${renderTopbar(`Round ${state.round} Trade`, `${selected.length}/2${originalViolations.length ? ` · 원서 경고 ${originalViolations.length}` : ''}`)}
 
       <section class="trade-header">
         <div>
@@ -649,10 +654,18 @@ function renderTrade() {
         </div>
         <div class="button-row">
           <button class="btn primary" id="exchange-books" ${canExchange ? '' : 'disabled'}>교환</button>
-          <button class="btn secondary" id="next-round">${state.round >= TOTAL_ROUNDS ? '최종 결과로' : '다음 라운드로'}</button>
+          <button class="btn secondary" id="next-round" ${canLeaveTrade ? '' : 'disabled'}>${state.round >= TOTAL_ROUNDS ? '최종 결과로' : '다음 라운드로'}</button>
+          <button class="btn quiet" id="undo-pick" ${canUndoLastPick() ? '' : 'disabled'}>직전 픽 취소</button>
           <button class="btn quiet" id="reset-state">전체 초기화</button>
         </div>
       </section>
+
+      ${originalViolations.length ? `
+        <section class="trade-warning-panel">
+          <strong>원서 2권 이상</strong>
+          <span>${originalViolations.map(({ student, count }) => `${escapeHtml(student.name)} ${count}권`).join(' · ')}</span>
+        </section>
+      ` : ''}
 
       <section class="trade-grid">
         ${students.map(renderTradeCard).join('')}
@@ -674,6 +687,7 @@ function renderTrade() {
   });
   document.getElementById('exchange-books').addEventListener('click', exchangeSelectedBooks);
   document.getElementById('next-round').addEventListener('click', commitRoundAndContinue);
+  document.getElementById('undo-pick').addEventListener('click', undoLastPick);
   document.getElementById('reset-state').addEventListener('click', resetState);
   bindTopbarActions();
   hydrateImages();
@@ -802,10 +816,12 @@ function renderEmptySelectedSlot(isDone) {
 function renderPickOrderItem(name, index) {
   const student = getStudent(name);
   const pickedTitle = state.currentRoundPicks[name];
+  const originalCount = getOriginalCountForStudent(name);
   const className = [
     index < state.pickIndex ? 'done' : '',
     index === state.pickIndex ? 'active' : '',
-    pickedTitle ? 'has-current-pick' : ''
+    pickedTitle ? 'has-current-pick' : '',
+    originalCount > 1 ? 'original-warning' : ''
   ].filter(Boolean).join(' ');
   const previousTitles = getOwnedBooks(name);
 
@@ -815,6 +831,7 @@ function renderPickOrderItem(name, index) {
       ${renderAvatar(student)}
       <div>
         <strong>${escapeHtml(formatStudentName(student))}</strong>
+        ${originalCount > 1 ? `<small class="original-alert">원서 ${originalCount}권</small>` : ''}
         <div class="student-book-stack">
           ${previousTitles.map((title) => renderBookCoverByTitle(title, 'order-cover')).join('')}
           ${pickedTitle ? renderBookCoverByTitle(pickedTitle, 'order-cover current-pick-cover') : ''}
@@ -829,13 +846,15 @@ function renderTradeCard(student) {
   const currentBook = currentTitle ? getBook(currentTitle) : null;
   const selected = state.selectedTradeStudents.includes(student.name);
   const previous = getOwnedBooks(student.name).filter((_, index) => index !== state.round - 1);
+  const originalCount = getOriginalCountForStudent(student.name);
 
   return `
-    <article class="trade-card ${selected ? 'selected' : ''}" data-student-name="${escapeHtml(student.name)}">
+    <article class="trade-card ${selected ? 'selected' : ''} ${originalCount > 1 ? 'original-warning' : ''}" data-student-name="${escapeHtml(student.name)}">
       <div class="student-badge">
         ${renderAvatar(student)}
         <div>
           <strong>${escapeHtml(formatStudentName(student))}</strong>
+          ${originalCount > 1 ? `<span class="original-alert">원서 ${originalCount}권</span>` : ''}
         </div>
       </div>
       <div class="trade-cover">
@@ -920,6 +939,39 @@ function clearSelection() {
   render();
 }
 
+function canUndoLastPick() {
+  if (state.phase === 'trade' && hasCurrentRoundTrades()) {
+    return false;
+  }
+
+  if (!['draft', 'trade'].includes(state.phase) || state.pickIndex <= 0) {
+    return false;
+  }
+
+  const previousName = state.pickOrder[state.pickIndex - 1];
+  return Boolean(previousName && state.currentRoundPicks[previousName]);
+}
+
+function undoLastPick() {
+  if (!canUndoLastPick()) {
+    return;
+  }
+
+  const previousIndex = state.pickIndex - 1;
+  const previousName = state.pickOrder[previousIndex];
+  const restoredTitle = state.currentRoundPicks[previousName];
+
+  delete state.currentRoundPicks[previousName];
+  state.roundPool = restoreTitleToRoundPool(restoredTitle);
+  state.selectedBookTitle = restoredTitle;
+  state.pickIndex = previousIndex;
+  state.phase = 'draft';
+  state.selectedTradeStudents = [];
+  delete state.roundHistory[state.round];
+  saveState();
+  render();
+}
+
 function confirmPick() {
   const studentName = state.pickOrder[state.pickIndex];
   const selected = state.selectedBookTitle;
@@ -995,6 +1047,11 @@ function isValidTrade(firstName, secondName) {
 }
 
 function commitRoundAndContinue() {
+  if (getOriginalRuleViolations().length) {
+    render();
+    return;
+  }
+
   commitCurrentRound();
 
   if (state.round >= TOTAL_ROUNDS) {
@@ -1139,15 +1196,7 @@ function createReadableResultsText() {
 
 function getEligibleBookTitles(studentName) {
   const owned = getOwnedBooks(studentName).filter(Boolean);
-  const hasOriginalBook = owned.some(isOriginalBookTitle);
-
-  return state.roundPool.filter((title) => {
-    if (owned.includes(title)) {
-      return false;
-    }
-
-    return !hasOriginalBook || !isOriginalBookTitle(title);
-  });
+  return state.roundPool.filter((title) => !owned.includes(title));
 }
 
 function getPickerForTitle(title) {
@@ -1161,11 +1210,51 @@ function getOwnedBooks(studentName) {
 function canReceiveBook(studentName, title) {
   const owned = getOwnedBooks(studentName).filter((ownedTitle, index) => ownedTitle && index !== state.round - 1);
 
-  if (owned.includes(title)) {
+  return title ? !owned.includes(title) : false;
+}
+
+function hasCurrentRoundTrades() {
+  return Boolean(state.tradeLogByRound[state.round]?.length);
+}
+
+function restoreTitleToRoundPool(title) {
+  const restored = unique([...state.roundPool, title]);
+  return books
+    .map((book) => book.title)
+    .filter((bookTitle) => restored.includes(bookTitle));
+}
+
+function getEffectiveOwnedBooks(studentName) {
+  const owned = [...getOwnedBooks(studentName)];
+  const currentTitle = state.currentRoundPicks[studentName];
+
+  if (currentTitle) {
+    owned[state.round - 1] = currentTitle;
+  }
+
+  return owned.filter(Boolean);
+}
+
+function getOriginalCountForStudent(studentName) {
+  return countOriginalBooks(getEffectiveOwnedBooks(studentName));
+}
+
+function wouldCreateOriginalOverflow(studentName, title) {
+  if (!isOriginalBookTitle(title)) {
     return false;
   }
 
-  return countOriginalBooks([...owned, title]) <= 1;
+  const owned = getOwnedBooks(studentName).filter((ownedTitle, index) => ownedTitle && index !== state.round - 1);
+  return countOriginalBooks([...owned, title]) > 1;
+}
+
+function getOriginalRuleViolations() {
+  return students
+    .map((student) => ({
+      student,
+      count: getOriginalCountForStudent(student.name)
+    }))
+    .filter(({ count }) => count > 1);
 }
 
 function countOriginalBooks(titles) {
